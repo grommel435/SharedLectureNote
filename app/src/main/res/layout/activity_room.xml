@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context="com.sharedlecturenote.RoomActivity">
+
+    <com.sharedlecturenote.DrawView
+        android:id="@+id/canvas"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#ffffff"
+        android:layout_weight="1">
+
+    </com.sharedlecturenote.DrawView>
+
+    <LinearLayout
+        android:id="@+id/menues"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:layout_weight="6"
+        android:layout_gravity="center">
+
+        <LinearLayout
+            android:orientation="vertical"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_weight="1">
+
+            <ImageView
+                android:id="@+id/colorPick"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@drawable/colorpick"
+                android:layout_margin="5dp">
+
+            </ImageView>
+
+            <ImageView
+                android:id="@+id/pen"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@drawable/penselect"
+                android:layout_margin="5dp">
+
+            </ImageView>
+
+            <ImageView
+                android:id="@+id/textInsert"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@drawable/text"
+                android:layout_margin="5dp">
+
+            </ImageView>
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:orientation="vertical"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginTop="10dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="참여자 목록"
+                android:id="@+id/textView"
+                android:textColor="#000000"
+                android:layout_marginBottom="10dp"
+                android:gravity="center" />
+
+            <ListView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:id="@+id/userlist"
+                android:layout_gravity="top" />
+        </LinearLayout>
+
+    </LinearLayout>
+
+</LinearLayout>

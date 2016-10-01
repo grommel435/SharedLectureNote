@@ -1,0 +1,19 @@
+<resources>
+    <string name="app_name">Shared Lecture Note</string>
+    <string name="logIn">Log-in</string>
+    <string name="register">Register</string>
+    <string name="id">ID</string>
+    <string name="password">Password</string>
+    <string name="accept">Accept</string>
+    <string name="cancel">Cancel</string>
+    <string name="list_name">Room List</string>
+    <string name="refresh">Refresh</string>
+    <string name="search">Search</string>
+    <string name="roomNum">Room Number</string>
+    <string name="masterId">Master ID</string>
+    <string name="make">Make Room</string>
+    <string name="enter">Enter</string>
+    <string name="logout">Log-out</string>
+    <string name="exit">Exit</string>
+    <string name="splashimage">splashImage</string>
+</resources>
