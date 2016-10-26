@@ -7,7 +7,9 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Menu;
@@ -17,22 +19,46 @@ import android.view.View;
 import android.view.WindowManager;
 import android.widget.ArrayAdapter;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.Toast;
+
+import com.github.barteksc.pdfviewer.PDFView;
+import com.github.barteksc.pdfviewer.listener.OnLoadCompleteListener;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import android.net.Uri;
+
+import java.io.File;
 import java.net.URISyntaxException;
+import java.util.List;
 
 import io.socket.client.IO;
 import io.socket.client.Socket;
 import io.socket.emitter.Emitter;
 
-public class RoomActivity extends Activity {
+public class RoomActivity extends Activity implements OnLoadCompleteListener {
     // DrawView
     private DrawView drawView;
+    // pdfView
+    private PDFView pdfView;
+    // prev/next Button이 포함된 linear layout
+    LinearLayout pdfButtonLayout;
+    // pdf uri
+    Uri pdfUri;
+    // PDF 파일 이름 저장
+    String fileName;
+    // 파일저장 경로 설정
+    String path = Environment.getExternalStorageDirectory().getAbsolutePath() + "/SharedLectureNote";
+    // 처음 여는 강의록인지 확인
+    boolean firstOpen = false;
+    // pdf pageNumber
+    int pageNumber;
+    // PDF 총 페이지 수
+    int pdfPageCnt = -1;
 
     // 사용자 id, 방장 Id
     private String userId, masterId;
@@ -46,7 +72,7 @@ public class RoomActivity extends Activity {
     // socket에 쓸 options 변수
     IO.Options opts = new IO.Options();
     // evet를 처리할 socket.io Listener
-    private Emitter.Listener onNewDraw, onNewUser, onExitUser, makeResult;
+    private Emitter.Listener onNewDraw, onNewUser, onExitUser, makeResult, onFile, onPageChange, onSound;
 
     // json객체 성공적으로 받았는지 여부
     int isSuccess;
@@ -72,6 +98,7 @@ public class RoomActivity extends Activity {
         static final int COLOR_PICK = 0;
         static final int PEN_SELECT = 1;
         static final int TEXT_INSERT = 2;
+        static final int PDF_CHOOSE = 3;
     }
 
     // 픽셀을 DP 로 변환하는 메소드.
@@ -92,7 +119,8 @@ public class RoomActivity extends Activity {
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         //add( Group Id, Item Id, Order, Title);
-        menu.add(0, 1, 0, R.string.exit);
+        menu.add(0, 1, 0, "Open File");
+        menu.add(0, 2, 0, R.string.exit);
 
         return super.onCreateOptionsMenu(menu);
     }
@@ -191,6 +219,31 @@ public class RoomActivity extends Activity {
                 }
                 Toast.makeText(getApplicationContext(), "화면을 터치하면 텍스트가 입력됩니다.", Toast.LENGTH_SHORT).show();
                 break;
+
+            // Open File
+            case activityTypeClass.PDF_CHOOSE:
+                if(data == null)
+                {
+                    Toast.makeText(getApplicationContext(), "해당 파일이 존재하지 않습니다.", Toast.LENGTH_SHORT).show();
+                }
+                else
+                {
+                    pdfUri = data.getData();
+                    fileName = pdfUri.getPath();
+                    if(firstOpen)
+                    {
+                        getPageCount();
+                    }
+                    displayFromUri(pdfUri);
+                    // PDF 버튼 layout 보이게함.
+                    pdfButtonLayout.setVisibility(View.VISIBLE);
+                    // 파일 위치를 /에 따라 잘라서 얻음
+                    List<String> tmp = pdfUri.getPathSegments();
+                    // List의 마지막은 파일 이름
+                    fileName = tmp.get(tmp.size()-1);
+                }
+
+                break;
         }
     }
 
@@ -200,8 +253,30 @@ public class RoomActivity extends Activity {
         switch(item.getItemId())
         {
             case 1:
+                // 강의록 Open 선택한 경우
+                // 최소 호환버전을 킷캣이상으로 지정
+                if(Build.VERSION.SDK_INT >= 19)
+                {
+                    // Open 누를때 새로운 강의록을 여므로 페이지 번호 초기화
+                    pageNumber = 0;
+                    // 처음 여는 것으로 간주
+                    firstOpen = true;
+                    Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+                    intent.setType("application/pdf");
+
+                    // OnActivitiyReusult로 처리
+                    startActivityForResult(intent, activityTypeClass.PDF_CHOOSE);
+                }
+                else
+                {
+                    Toast.makeText(getApplicationContext(), "안드로이드 킷캣 4.4 이상에서만 사용가능합니다.", Toast.LENGTH_SHORT).show();
+                }
+                break;
+
+            case 2:
                 // Exit 누른 경우
                 finish();
+                break;
         }
 
         return super.onOptionsItemSelected(item);
@@ -214,16 +289,32 @@ public class RoomActivity extends Activity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         setContentView(R.layout.activity_room);
 
-        // 그림그리는 부분
+        // 폴더 생성
+        File folder = new File(path);
+        if(!folder.exists())
+        {
+            folder.mkdirs();
+        }
+
+        // 그림그리는 view
         drawView = (DrawView) findViewById(R.id.canvas);
+        drawView.setBackgroundColor(Color.TRANSPARENT);
+        // PDF view
+        pdfView = (PDFView) findViewById(R.id.pdfView);
+        // PDF 조작버튼 들어간 Layout
+        pdfButtonLayout = (LinearLayout) findViewById(R.id.pageBtnLayout);
 
         // 초기화
         paint = drawView.getPaintData();
 
-        // 버튼으로 사용할 ImageView 3개
+        // 오른쪽에 그리기 속성 버튼으로 사용할 ImageView 3개
         ImageView colorPick = (ImageView) findViewById(R.id.colorPick);
         ImageView penSelect = (ImageView) findViewById(R.id.pen);
         ImageView textInsert = (ImageView) findViewById(R.id.textInsert);
+
+        // 왼쪽에 PDF속성 버튼으로 사용할 ImageView
+        ImageView nextBtn = (ImageView) findViewById(R.id.nextButton);
+        ImageView prevBtn = (ImageView) findViewById(R.id.prevButton);
 
         // 참여자 목록 ListView
         final ListView userList = (ListView) findViewById(R.id.userlist);
@@ -286,6 +377,42 @@ public class RoomActivity extends Activity {
                 textInsIntent.putExtra("strType", strType);
                 textInsIntent.putExtra("typeface", typeface);
                 startActivityForResult(textInsIntent, activityTypeClass.TEXT_INSERT);
+            }
+        });
+
+        // prevBtn 클릭
+        prevBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                pageNumber--;
+                // pageNumber가 음수로 가는 경우는 없음
+                if(pageNumber < 0)
+                {
+                    pageNumber = 0;
+                    Toast.makeText(getApplicationContext(), "첫 페이지 입니다." , Toast.LENGTH_SHORT).show();
+                }
+                else
+                {
+                    displayFromUri(pdfUri);
+                }
+            }
+        });
+
+        // nextBtn 클릭
+        nextBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                pageNumber++;
+                // pageNumber 0이 첫페이지
+                if(pageNumber >= pdfPageCnt)
+                {
+                    pageNumber--;
+                    Toast.makeText(getApplicationContext(), "마지막 페이지입니다.", Toast.LENGTH_SHORT).show();
+                }
+                else
+                {
+                    displayFromUri(pdfUri);
+                }
             }
         });
 
@@ -629,6 +756,46 @@ public class RoomActivity extends Activity {
                 break;
             default:
                 break;
+        }
+    }
+
+    private void getPageCount()
+    {
+        String fPath = pdfUri.getPath();
+        File f = new File(fPath);
+        pdfView.fromFile(f)
+                .enableSwipe(false)
+                .swipeHorizontal(false)
+                .enableDoubletap(false)
+                .scrollHandle(null)
+                .onLoad(this)
+                .load();
+    }
+
+    // PDF 화면에 출력
+    private void displayFromUri(Uri uri)
+    {
+        // RGB_565에서 ARGB_8888로 강제변경
+        // 화질 좋아짐
+        // 메모리 소비 커짐
+        pdfView.useBestQuality(true);
+        pdfView.fromUri(uri)
+                .enableSwipe(false)
+                .swipeHorizontal(false)
+                .enableDoubletap(false)
+                .scrollHandle(null)
+                .pages(pageNumber)
+                .onLoad(this)
+                .load();
+    }
+
+    @Override
+    public void loadComplete(int nbPages) {
+        if(firstOpen)
+        {
+            pdfPageCnt = nbPages;
+            Toast.makeText(getApplicationContext(), "강의록을 열었습니다.", Toast.LENGTH_SHORT).show();
+            firstOpen = false;
         }
     }
 }

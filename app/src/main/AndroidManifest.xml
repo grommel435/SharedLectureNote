@@ -4,8 +4,10 @@
 
     <!-- INTERNET 사용 -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- 외장메모리 사용 -->
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <!-- 메모리 읽기 -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+    <!-- 메모리 쓰기 -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
     <!-- wifi 상태 변경 -->
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
     <!-- INTERNET 연결 확인 -->

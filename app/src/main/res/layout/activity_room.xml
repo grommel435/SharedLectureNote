@@ -1,25 +1,103 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- splitMotionEvents 는 멀티터치 옵션 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:splitMotionEvents="false"
     tools:context="com.sharedlecturenote.RoomActivity">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_weight="8"
+        android:orientation="vertical"
+        android:layout_gravity="center">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:layout_gravity="center"
+            android:layout_weight="1">
+
+            <!-- 말하는 사람이 표시될 자리 -->
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:layout_gravity="center"
+            android:layout_weight="1"
+            android:id="@+id/pageBtnLayout"
+            android:visibility="invisible">
+
+            <!-- 이전페이지 다음페이지 버튼 위치 -->
+
+            <ImageView
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:background="@drawable/prev"
+                android:id="@+id/prevButton"
+                android:layout_margin="5dp"/>
+
+            <ImageView
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:background="@drawable/next"
+                android:id="@+id/nextButton"
+                android:layout_margin="5dp"/>
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:layout_gravity="center"
+            android:layout_weight="1">
+
+            <!-- 마이크 음소거 되돌리기 버튼 위치 -->
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+<FrameLayout
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:layout_weight="1"
+    android:layout_gravity="center"
+    android:id="@+id/overlayer">
+
+    <com.github.barteksc.pdfviewer.PDFView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@android:color/darker_gray"
+        android:id="@+id/pdfView">
+    </com.github.barteksc.pdfviewer.PDFView>
 
     <com.sharedlecturenote.DrawView
         android:id="@+id/canvas"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#ffffff"
-        android:layout_weight="1">
+        android:background="#00000000">
 
     </com.sharedlecturenote.DrawView>
+
+</FrameLayout>
+
 
     <LinearLayout
         android:id="@+id/menues"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
-        android:layout_weight="6"
+        android:layout_weight="8"
         android:layout_gravity="center">
 
         <LinearLayout
@@ -70,7 +148,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="참여자 목록"
+                android:text="참여자"
                 android:id="@+id/textView"
                 android:textColor="#000000"
                 android:layout_marginBottom="10dp"

@@ -91,7 +91,7 @@ public class DrawView extends View {
     @Override
     protected void onDraw(Canvas canvas) {
         // canvse 흰색으로 초기화
-        canvas.drawColor(Color.WHITE);
+        canvas.drawColor(Color.TRANSPARENT);
         for(int i = 0; i < data.size(); i++) {
             // isDraw가 0 이면 선이므로 이전 객체와 연결
             if(data.get(i).isDraw == 0) {
