@@ -94,9 +94,10 @@ public class RoomListActivity extends Activity {
         }
     }
 
-    // RoomActivity에서 나오는 경우 자동으로 목록을 최신화 하기 위해 onStart에서 구현
+    // RoomActivity에서 나오는 경우 자동으로 목록을 최신화 하기 위해 onResume에서 구현
     @Override
-    protected void onStart() {
+    protected void onResume() {
+        super.onResume();
 
         // network 정보를 가져오기 위한 cm 선언 및 System Service 할당
         ConnectivityManager cm = (ConnectivityManager) this.getSystemService(Context.CONNECTIVITY_SERVICE);
@@ -161,8 +162,6 @@ public class RoomListActivity extends Activity {
                 }
             });
         }
-
-        super.onStart();
     }
 
     @Override
@@ -172,7 +171,7 @@ public class RoomListActivity extends Activity {
 
         // url 받음
         Intent intent = getIntent();
-        String url = intent.getStringExtra("url");
+        final String url = intent.getStringExtra("url");
 
         // Login ID를 가져옴.
         String userId = intent.getStringExtra("ID");
@@ -261,7 +260,7 @@ public class RoomListActivity extends Activity {
                                 if(success == 1) {
                                     // JSON object에서 JSON array를 가져옴
                                     JSONArray jsonArray = jsonObject.getJSONArray("result");
-                                    if(jsonArray.length() == 0) {
+                                    if(jsonArray.isNull(0)) {
                                         Toast.makeText(getApplicationContext(), "참여 가능한 방목록이 없습니다.", Toast.LENGTH_SHORT).show();
                                     } else {
                                         // 배열을 순회하며 data를 가져온다.
@@ -367,7 +366,6 @@ public class RoomListActivity extends Activity {
         logoutBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                startActivity(loginIntent);
                 finish();
             }
         });
