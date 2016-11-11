@@ -3,6 +3,7 @@ package com.sharedlecturenote;
 import android.widget.Toast;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -22,6 +23,34 @@ public class convertFile {
         try {
             // file을 inputStream에 넣음
             InputStream inputStream = new FileInputStream(sourcePath);
+
+            byte[] buffer = new byte[8192];
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            int bytesRead;
+
+            try {
+                while((bytesRead = inputStream.read(buffer)) != -1)
+                {
+                    baos.write(buffer, 0, bytesRead);
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+            byteArray = baos.toByteArray();
+
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+        return byteArray;
+    }
+
+    public static byte[] convertToByteArray(File file) {
+        byte[] byteArray = null;
+
+        try {
+            // file을 inputStream에 넣음
+            InputStream inputStream = new FileInputStream(file);
 
             byte[] buffer = new byte[8192];
             ByteArrayOutputStream baos = new ByteArrayOutputStream();

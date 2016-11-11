@@ -10,7 +10,7 @@ public class drawData {
     float y;
     int sR,  sG, sB;
     int penType;
-    String str;
+    String str, userId;
     float strSize;
     // 글꼴
     int typeface;
@@ -18,8 +18,11 @@ public class drawData {
     int isDraw, isText;
     Paint paint;
 
-    // 최종적으로 사용할 것
-    public drawData(float x_, float y_, int sR_, int sG_, int sB_, int penType_, int typeface_, String str_, float strSize_, int strType_, Paint paint_, int isDraw_, int isText_) {
+    // drawDatas의 index정보, 기본값 -1
+    int index = -1;
+
+    public drawData(String ID, float x_, float y_, int sR_, int sG_, int sB_, int penType_, int typeface_, String str_, float strSize_, int strType_, Paint paint_, int isDraw_, int isText_, int ind) {
+        userId = ID;
         x = x_;
         y = y_;
         sR = sR_;
@@ -36,5 +39,7 @@ public class drawData {
         isText = isText_;
         // 점과 선 구분
         isDraw = isDraw_;
+        // 인덱스 정보
+        index = ind;
     }
 }

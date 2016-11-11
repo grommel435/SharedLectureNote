@@ -6,7 +6,6 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Typeface;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 import java.util.ArrayList;
@@ -14,15 +13,16 @@ import java.util.ArrayList;
 /**
  * Created by DJ on 2016-05-17.
  */
+
 public class DrawView extends View {
     // 그림정보 저장할 ArrayList
-    private ArrayList<drawData> data;
+    private ArrayList<drawData> drawObject;
     // Paint 객체
-    private Paint paintData;
+    private Paint paintData, nowDrawing;
     // 사용할 변수
     private float x, y, penSize, strSize;
-    private String str ="";
-    private int pA, pR, pG, pB, sR, sG, sB, penType, typeface, strType, isDraw, isText;
+    private String str ="", userId;
+    private int pA, pR, pG, pB, sR, sG, sB, penType, typeface, strType, isDraw, isText, roomNum, index;
 
     public int getIsDraw() {
         return isDraw;
@@ -63,7 +63,8 @@ public class DrawView extends View {
     // 초기화
     public void init() {
         // ArrayList 초기화
-        data = new ArrayList<drawData> ();
+        drawObject = new ArrayList<drawData> ();
+
         // 변수 초기값으로 초기화
         penSize = 1.0f;
         penType = 1;
@@ -76,12 +77,14 @@ public class DrawView extends View {
         sR = 0;
         sG = 0;
         sB = 0;
-        strSize = 10.0f;
+        strSize = 20.0f;
         strType = 1;
         isText = 0;
+        index = 1;
 
         // Paint 객체 초기화
         paintData = new Paint();
+        nowDrawing = new Paint();
         paintData.setStrokeWidth(penSize);
         paintData.setAntiAlias(true);
         paintData.setColor(Color.argb(pA, pR, pG, pB));
@@ -90,90 +93,90 @@ public class DrawView extends View {
 
     @Override
     protected void onDraw(Canvas canvas) {
-        // canvse 흰색으로 초기화
+        // canvse 배경 투명하게 초기화
         canvas.drawColor(Color.TRANSPARENT);
-        for(int i = 0; i < data.size(); i++) {
+        for(int i = 0; i < drawObject.size(); i++) {
             // isDraw가 0 이면 선이므로 이전 객체와 연결
-            if(data.get(i).isDraw == 0) {
-                canvas.drawLine(data.get(i-1).x, data.get(i-1).y, data.get(i).x, data.get(i).y, data.get(i).paint);
+            if(drawObject.get(i).isDraw == 0) {
+                canvas.drawLine(drawObject.get(i-1).x, drawObject.get(i-1).y, drawObject.get(i).x, drawObject.get(i).y, drawObject.get(i).paint);
             } else {
                 // isDraw값이 1로 ACTION_DOWN인 경우
-                if(data.get(i).isText == 1) {
+                if(drawObject.get(i).isText == 1) {
                     // isText == true
-                    Paint sPaint = new Paint();
+
                     // text 색상 설정
-                    sPaint.setColor(Color.rgb(data.get(i).sR, data.get(i).sG, data.get(i).sB));
+                    nowDrawing.setColor(Color.rgb(drawObject.get(i).sR, drawObject.get(i).sG, drawObject.get(i).sB));
                     // 글자 크기
-                    sPaint.setTextSize(data.get(i).strSize);
+                    nowDrawing.setTextSize(drawObject.get(i).strSize);
                     // 글자속성
-                    if(data.get(i).typeface == 1) {
+                    if(drawObject.get(i).typeface == 1) {
                         // Typeface.DEFAULT
-                        switch(data.get(i).penType) {
+                        switch(drawObject.get(i).penType) {
                             case 1 :
                                 // Typeface.NORMAL
-                                sPaint.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.NORMAL));
+                                nowDrawing.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.NORMAL));
                                 break;
                             case 2 :
                                 // Typeface.BOLD
-                                sPaint.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
+                                nowDrawing.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
                                 break;
                             case 3 :
                                 // Typeface.ITALIC
-                                sPaint.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.ITALIC));
+                                nowDrawing.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.ITALIC));
                                 break;
                         }
-                    } else if(data.get(i).typeface == 2) {
+                    } else if(drawObject.get(i).typeface == 2) {
                         // Typeface.MONOSPACE
-                        switch(data.get(i).penType) {
+                        switch(drawObject.get(i).penType) {
                             case 1 :
                                 // Typeface.NORMAL
-                                sPaint.setTypeface(Typeface.create(Typeface.MONOSPACE, Typeface.NORMAL));
+                                nowDrawing.setTypeface(Typeface.create(Typeface.MONOSPACE, Typeface.NORMAL));
                                 break;
                             case 2 :
                                 // Typeface.BOLD
-                                sPaint.setTypeface(Typeface.create(Typeface.MONOSPACE, Typeface.BOLD));
+                                nowDrawing.setTypeface(Typeface.create(Typeface.MONOSPACE, Typeface.BOLD));
                                 break;
                             case 3 :
                                 // Typeface.ITALIC
-                                sPaint.setTypeface(Typeface.create(Typeface.MONOSPACE, Typeface.ITALIC));
+                                nowDrawing.setTypeface(Typeface.create(Typeface.MONOSPACE, Typeface.ITALIC));
                                 break;
                         }
-                    } else if(data.get(i).typeface == 3) {
+                    } else if(drawObject.get(i).typeface == 3) {
                         // Typeface.SANS_SERIF
-                        switch(data.get(i).penType) {
+                        switch(drawObject.get(i).penType) {
                             case 1 :
                                 // Typeface.NORMAL
-                                sPaint.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL));
+                                nowDrawing.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL));
                                 break;
                             case 2 :
                                 // Typeface.BOLD
-                                sPaint.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
+                                nowDrawing.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
                                 break;
                             case 3 :
                                 // Typeface.ITALIC
-                                sPaint.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.ITALIC));
+                                nowDrawing.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.ITALIC));
                                 break;
                         }
                     } else {
                         // Typeface.SERIF
-                        switch(data.get(i).penType) {
+                        switch(drawObject.get(i).penType) {
                             case 1 :
                                 // Typeface.NORMAL
-                                sPaint.setTypeface(Typeface.create(Typeface.SERIF, Typeface.NORMAL));
+                                nowDrawing.setTypeface(Typeface.create(Typeface.SERIF, Typeface.NORMAL));
                                 break;
                             case 2 :
                                 // Typeface.BOLD
-                                sPaint.setTypeface(Typeface.create(Typeface.SERIF, Typeface.BOLD));
+                                nowDrawing.setTypeface(Typeface.create(Typeface.SERIF, Typeface.BOLD));
                                 break;
                             case 3 :
                                 // Typeface.ITALIC
-                                sPaint.setTypeface(Typeface.create(Typeface.SERIF, Typeface.ITALIC));
+                                nowDrawing.setTypeface(Typeface.create(Typeface.SERIF, Typeface.ITALIC));
                                 break;
                         }
                     }
-                    sPaint.setAntiAlias(true);
+                    nowDrawing.setAntiAlias(true);
                     // Text 그림
-                    canvas.drawText(data.get(i).str, data.get(i).x, data.get(i).y, sPaint);
+                    canvas.drawText(drawObject.get(i).str, drawObject.get(i).x, drawObject.get(i).y, nowDrawing);
                 }
             }
         }
@@ -183,42 +186,56 @@ public class DrawView extends View {
     public boolean onTouchEvent(MotionEvent event) {
         x = event.getX();
         y = event.getY();
+        drawData d;
 
         switch(event.getAction()) {
             case MotionEvent.ACTION_DOWN:
                 isDraw = 1;
+
+                d = new drawData(userId, x, y, sR, sG, sB, penType, typeface, str, strSize, strType, paintData, isDraw, isText, index);
+                drawObject.add(d);
+
+                // 텍스트 입력이 된 경우 텍스트 입력상태 해제
+                if(isText == 1) {
+                    isText = 0;
+                    str="";
+                }
+                // 화면 갱신
+                invalidate();
                 break;
+
             case MotionEvent.ACTION_MOVE:
                 isDraw = 0;
+
+                d = new drawData(userId, x, y, sR, sG, sB, penType, typeface, str, strSize, strType, paintData, isDraw, isText, index);
+                drawObject.add(d);
+
+                // 텍스트 입력이 된 경우 텍스트 입력상태 해제
+                if(isText == 1) {
+                    isText = 0;
+                    str="";
+                }
+                // 화면 갱신
+                invalidate();
                 break;
-            default:
+
+            case MotionEvent.ACTION_UP:
+                index++;
                 break;
         }
-
-        drawData d = new drawData(x, y, sR, sG, sB, penType, typeface, str, strSize, strType, paintData, isDraw, isText);
-        data.add(d);
-
-        // 텍스트 입력이 된 경우 텍스트 입력상태 해제
-        if(isText == 1) {
-            isText = 0;
-            str="";
-        }
-        // 화면 갱신
-        invalidate();
-
         return true;
     }
 
     // dwarData를 받아 추가하는 메서드
     public void sendDrawData(drawData d) {
-        data.add(d);
+        drawObject.add(d);
         // 화면 갱신
         invalidate();
     }
 
     // 갱신없이 그림정보 추가
     public void sendDrawDataWithoutInvalidate(drawData d) {
-        data.add(d);
+        drawObject.add(d);
     }
 
     // 펜 변화 받아 적용하는 메서드
@@ -262,8 +279,58 @@ public class DrawView extends View {
         isText = isText_;
     }
 
-    // ArrayList Data 현황 반환
-    public int getDrawDataSize () {
-        return data.size();
+    public void setUserId(String id)
+    {
+        userId = id;
+    }
+
+    public void clearCanvas()
+    {
+        drawObject.clear();
+        invalidate();
+    }
+
+    public int getDrawObjectCnt()
+    {
+        return drawObject.size();
+    }
+
+    public int getIndex()
+    {
+        return index;
+    }
+
+    public void deleteDrawObject(int idx, String id)
+    {
+        int size = drawObject.size();
+
+        for(int i = size-1; i >= 0; i--)
+        {
+            // 내가 그린 그림만 지워짐
+            // 그림의 주체가 같은 경우 지우기 실시
+            if(drawObject.get(i).userId.equals(id))
+            {
+                int j = i;
+                // 그림 객체의 index 값을 얻음
+                int ind = drawObject.get(i).index;
+                // 사용자 아이디가 동일하고 index값이 같은 경우 하나의 객체
+                while(drawObject.get(j).userId.equals(id) && drawObject.get(j).index == idx)
+                {
+                    // 지우기
+                    drawObject.remove(j);
+                    j--;
+
+                    if(j < 0)
+                    {
+                        break;
+                    }
+                }
+                break;
+            }
+        }
+        // 그림객체를 지웠으므로 index 1감소
+        index--;
+        // 화면 갱신
+        invalidate();
     }
 }

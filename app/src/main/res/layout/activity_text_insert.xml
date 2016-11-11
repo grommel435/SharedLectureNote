@@ -58,7 +58,7 @@
                 android:id="@+id/strSizeEdit"
                 android:inputType="numberDecimal"
                 android:ems="6"
-                android:hint="최대값 40"/>
+                android:hint="최대값 100"/>
 
         </LinearLayout>
 

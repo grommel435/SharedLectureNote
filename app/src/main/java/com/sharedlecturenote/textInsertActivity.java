@@ -88,7 +88,7 @@ public class textInsertActivity extends Activity {
         b = intent.getIntExtra("b", 0);
         typeface = intent.getIntExtra("typeface", 1);
         strType = intent.getIntExtra("strType", 1);
-        strSize = intent.getFloatExtra("strSize", 10.0f);
+        strSize = intent.getFloatExtra("strSize", 40.0f);
 
         // 전달받은 값으초 초기화
         strColor.setBackgroundColor(Color.rgb(r, g, b));
@@ -112,8 +112,6 @@ public class textInsertActivity extends Activity {
                 strView.setTypeface(Typeface.SERIF);
                 break;
         }
-        // 글씨크기
-        strView.setTextSize(strSize);
         // 글씨색상
         strView.setTextColor(Color.rgb(r, g, b));
         // 글씨 속성
@@ -189,15 +187,13 @@ public class textInsertActivity extends Activity {
                 String input = textView.getText().toString();
                 float size = Float.valueOf(input);
 
-                if(size > 40.f) {
-                    Toast.makeText(getApplicationContext(), "최대값은 40입니다.", Toast.LENGTH_SHORT).show();
+                if(size > 100.f) {
+                    Toast.makeText(getApplicationContext(), "최대값은 100입니다.", Toast.LENGTH_SHORT).show();
                 } else if(size <= 0) {
                     Toast.makeText(getApplicationContext(), "0보다 큰수를 입력하여 주세요.", Toast.LENGTH_SHORT).show();
                 } else {
                     // 값 적용
                     strSize = size;
-                    // textView 크기도 변경
-                    strView.setTextSize(strSize);
                 }
                 return false;
             }

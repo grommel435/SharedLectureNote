@@ -1,8 +1,10 @@
 package com.sharedlecturenote;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -17,14 +19,18 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.Message;
 import android.provider.MediaStore;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 import android.util.DisplayMetrics;
 import android.util.Log;
+import android.view.ContextMenu;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.ArrayAdapter;
+import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
@@ -41,8 +47,12 @@ import org.json.JSONObject;
 import android.net.Uri;
 
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.ArrayList;
 import java.util.List;
 
 import io.socket.client.IO;
@@ -56,6 +66,10 @@ public class RoomActivity extends Activity implements OnLoadCompleteListener {
     private PDFView pdfView;
     // prev/next Button이 포함된 linear layout
     LinearLayout pdfButtonLayout;
+
+    // master 인지 판별
+    boolean isMaster = false;
+
     // pdf uri
     Uri pdfUri;
     // PDF 파일 이름 저장
@@ -70,6 +84,8 @@ public class RoomActivity extends Activity implements OnLoadCompleteListener {
     int pageNumber = 0;
     // PDF 총 페이지 수
     int pdfPageCnt = -1;
+    // PDF fie
+    File pdfFile = null;
 
     // 사용자 id, 방장 Id
     private String userId, masterId;
@@ -87,7 +103,7 @@ public class RoomActivity extends Activity implements OnLoadCompleteListener {
     // socket에 쓸 options 변수
     IO.Options opts = new IO.Options();
     // evet를 처리할 socket.io Listener
-    private Emitter.Listener onNewDraw, onNewUser, onExitUser, makeResult, onFile, onPageChange, onSound;
+    private Emitter.Listener onNewDraw, onNewUser, onExitUser, makeResult, onFile, onPageChange, onSound,  onDelete;
 
     // Android AsyncHttpClient
     private AsyncHttpClient mHttpClient = new AsyncHttpClient();
@@ -105,7 +121,7 @@ public class RoomActivity extends Activity implements OnLoadCompleteListener {
     byte [] voiceRecordByte, voicePlayByte;
 
     // 전송할때 사용할 변수
-    private float x, y, penSize = 1.0f, strSize = 10.0f;
+    private float x, y, penSize = 1.0f, strSize = 40.0f;
     private String str = "";
     private int pA = 255, pR = 0, pG = 0, pB = 0, sR = 0, sG = 0, sB = 0, penType = 1, typeface = 1, strType = 1, isDraw, isText;
     private Paint paint;
@@ -137,16 +153,6 @@ public class RoomActivity extends Activity implements OnLoadCompleteListener {
         DisplayMetrics displayMetrics = context.getResources().getDisplayMetrics();
         float px = Math.round(dp * (displayMetrics.densityDpi / DisplayMetrics.DENSITY_DEFAULT));
         return px;
-    }
-
-    // Menu 생성
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        //add( Group Id, Item Id, Order, Title);
-        menu.add(0, 1, 0, "Open File");
-        menu.add(0, 2, 0, R.string.exit);
-
-        return super.onCreateOptionsMenu(menu);
     }
 
     // 뒤로 가기 버튼 누르는 경우 Activity 완전 종료
@@ -187,9 +193,9 @@ public class RoomActivity extends Activity implements OnLoadCompleteListener {
         ioSocket.disconnect();
         fileSocket.disconnect();
 
-        // 연결 종료 후 Event Listener도 종료
-        ioSocket.off("enterResult", onNewUser).off("exitResult", onExitUser).off("serverToClient", onNewDraw).off("makeResult", makeResult);
-        fileSocket.off("pdfDownload", onFile);
+        // Event Listener 해제
+        ioSocket.off("enterResult", onNewUser).off("exitResult", onExitUser).off("serverToClient", onNewDraw).off("makeResult", makeResult).off("onDelete", onDelete);
+        fileSocket.off("pdfDownload", onFile).off("pageChange", onPageChange).off("enterRoomPdf", onFile);
 
 //        voicePlayThread.interrupt();
 //        voiceRecordThread.interrupt();
@@ -282,9 +288,9 @@ public class RoomActivity extends Activity implements OnLoadCompleteListener {
                         isText = 1;
                         // drawView 글자 설정 및 글자 입력 상태로 전환
                         drawView.setStr(sR, sG, sB, strType, strSize, typeface, str, isText);
+                        Toast.makeText(getApplicationContext(), "화면을 터치하면 텍스트가 입력됩니다.", Toast.LENGTH_SHORT).show();
                         break;
                 }
-                Toast.makeText(getApplicationContext(), "화면을 터치하면 텍스트가 입력됩니다.", Toast.LENGTH_SHORT).show();
                 break;
 
             // Open File
@@ -298,86 +304,154 @@ public class RoomActivity extends Activity implements OnLoadCompleteListener {
                     // content URI 를 File URI로 바꾸어 경로를 생성
                     pdfFilePath = convertUri.getPath(getApplicationContext(), pdfUri);
 
-                    // 처음 파일을 여는 경우
-                    // 전체 페이지를 얻어옴
-                    if (firstOpen) {
-                        pdfPageCnt = getPageCount(pdfFilePath);
-                    }
-
-                    // 화면에 출력
-                    displayFromUri(pdfUri);
-                    // PDF 버튼 layout 보이게함.
-                    pdfButtonLayout.setVisibility(View.VISIBLE);
-                    // 파일 위치를 /에 따라 잘라서 얻음
-                    List<String> tmp = pdfUri.getPathSegments();
-                    // List의 마지막은 primary:파일 이름
-                    fileName = tmp.get(tmp.size() - 1);
-
-                    // :의 위치 추출
-                    int index_t = fileName.indexOf(':');
-                    // :위치이후부터 끝까지 추출하면 파일의 이름
-                    fileName = fileName.substring(index_t+1);
-
-                    // PDF to Byte Array
-                    byte[] pdfByte = convertFile.convertToByteArray(pdfFilePath);
-
-                    if(pdfByte != null)
+                    if(pdfFilePath.isEmpty())
                     {
-                        jsonObject = new JSONObject();
-
-                        try {
-                            jsonObject.put("num", roomNum);
-                            jsonObject.put("fileName", fileName);
-                            jsonObject.put("fileData", pdfByte);
-                        } catch (JSONException e) {
-                            e.printStackTrace();
-                        }
-
-                        fileSocket.emit("pdfUpload", jsonObject);
+                        Toast.makeText(getApplicationContext(), "파일을 선택하지 않았거나 잘못 선택되었습니다.", Toast.LENGTH_SHORT).show();
                     }
                     else
                     {
-                        Toast.makeText(getApplicationContext(), "파일을 선택하지 않았거나 잘못 선택되었습니다.", Toast.LENGTH_SHORT).show();
+                        pdfFile = new File(pdfFilePath);
+
+                        // 처음 파일을 여는 경우
+                        // 전체 페이지를 얻어옴
+                        if (firstOpen) {
+                            pdfPageCnt = getPageCount(pdfFile);
+                        }
+
+                        // 화면에 출력
+                        displayFromUri(pdfUri);
+                        // PDF 버튼 layout 보이게함.
+                        pdfButtonLayout.setVisibility(View.VISIBLE);
+                        // 파일 위치를 /에 따라 잘라서 얻음
+                        List<String> tmp = pdfUri.getPathSegments();
+                        // List의 마지막은 primary:파일 이름
+                        fileName = tmp.get(tmp.size() - 1);
+
+                        // :의 위치 추출
+                        int index_t = fileName.indexOf(':');
+                        // :위치이후부터 끝까지 추출하면 파일의 이름과 폴더가 추출
+                        fileName = fileName.substring(index_t+1);
+
+                        while(fileName.indexOf('/') > 0)
+                        {
+                            index_t = fileName.indexOf('/');
+                            fileName = fileName.substring(index_t+1);
+                        }
+
+                        // PDF to Byte Array
+                        byte[] pdfByte = convertFile.convertToByteArray(pdfFile);
+
+                        if(pdfByte != null)
+                        {
+                            jsonObject = new JSONObject();
+
+                            try {
+                                jsonObject.put("num", roomNum);
+                                jsonObject.put("fileName", fileName);
+                                jsonObject.put("pageNum", pageNumber);
+                                jsonObject.put("fileData", pdfByte);
+                            } catch (JSONException e) {
+                                e.printStackTrace();
+                            }
+
+                            fileSocket.emit("pdfUpload", jsonObject);
+                        }
+                        else
+                        {
+                            Toast.makeText(getApplicationContext(), "PDF파일의 전송에 실패하였습니다.", Toast.LENGTH_SHORT).show();
+                        }
                     }
                 }
                 break;
         }
     }
 
-    // Menu 선택
+    // Permission Check
     @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        switch (requestCode) {
+            case 0: {
+                // If request is cancelled, the result arrays are empty.
+                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+
+                    // permission was granted, yay! Do the
+                    // contacts-related task you need to do.
+                    Toast.makeText(getApplicationContext(), "메모리 접근 권한을 주었습니다.", Toast.LENGTH_SHORT).show();
+
+                } else {
+
+                    // permission denied, boo! Disable the
+                    // functionality that depends on this permission.
+                }
+                break;
+            }
+            case 1:
+            {
+                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+
+                    // permission was granted, yay! Do the
+                    // contacts-related task you need to do.
+                    Toast.makeText(getApplicationContext(), "메모리 접근 권한을 주었습니다.", Toast.LENGTH_SHORT).show();
+
+                } else {
+
+                    // permission denied, boo! Disable the
+                    // functionality that depends on this permission.
+                }
+                break;
+            }
+
+            // other 'case' lines to check for other
+            // permissions this app might request
+        }
+    }
+
+    @Override
+    public void onCreateContextMenu(ContextMenu menu, View v, ContextMenu.ContextMenuInfo menuInfo) {
+        super.onCreateContextMenu(menu, v, menuInfo);
+
+        menu.setHeaderTitle("메뉴");
+
+        menu.add(0, 1, 0, "강의록 열기");
+        menu.add(0, 2, 0, "방 나가기");
+    }
+
+    @Override
+    public boolean onContextItemSelected(MenuItem item) {
         switch(item.getItemId())
         {
             case 1:
-                // 강의록 Open 선택한 경우
-                // 최소 호환버전을 킷캣이상으로 지정
-                if(Build.VERSION.SDK_INT >= 19)
+                if(isMaster)
                 {
-                    // Open 누를때 새로운 강의록을 여므로 페이지 번호 초기화
-                    pageNumber = 0;
-                    // 처음 여는 것으로 간주
-                    firstOpen = true;
+                    if(Build.VERSION.SDK_INT >= 19)
+                    {
+                        // Open 누를때 새로운 강의록을 여므로 페이지 번호 초기화
+                        pageNumber = 0;
+                        // 처음 여는 것으로 간주
+                        firstOpen = true;
 
-                    Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
-                    intent.setType("*/*");
+                        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+                        intent.setType("*/*");
 
-                    // OnActivitiyReusult로 처리
-                    startActivityForResult(intent, activityTypeClass.PDF_CHOOSE);
+                        // OnActivitiyReusult로 처리
+                        startActivityForResult(intent, activityTypeClass.PDF_CHOOSE);
+                    }
+                    else
+                    {
+                        Toast.makeText(getApplicationContext(), "안드로이드 킷캣 4.4 이상에서만 사용가능합니다.", Toast.LENGTH_SHORT).show();
+                    }
                 }
                 else
                 {
-                    Toast.makeText(getApplicationContext(), "안드로이드 킷캣 4.4 이상에서만 사용가능합니다.", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(getApplicationContext(), "방장만이 PDF파일을 열 수 있습니다.", Toast.LENGTH_SHORT).show();
                 }
-                break;
-
+                return true;
             case 2:
                 // Exit 누른 경우
                 onBackPressed();
-                break;
+                return true;
         }
-
-        return super.onOptionsItemSelected(item);
+        return super.onContextItemSelected(item);
     }
 
     @Override
@@ -397,6 +471,7 @@ public class RoomActivity extends Activity implements OnLoadCompleteListener {
         // 그림그리는 view
         drawView = (DrawView) findViewById(R.id.canvas);
         drawView.setBackgroundColor(Color.TRANSPARENT);
+
         // PDF view
         pdfView = (PDFView) findViewById(R.id.pdfView);
         // PDF 조작버튼 들어간 Layout
@@ -413,6 +488,13 @@ public class RoomActivity extends Activity implements OnLoadCompleteListener {
         // 왼쪽에 PDF속성 버튼으로 사용할 ImageView
         ImageView nextBtn = (ImageView) findViewById(R.id.nextButton);
         ImageView prevBtn = (ImageView) findViewById(R.id.prevButton);
+
+        // 취소 버튼
+        ImageView cancelBtn = (ImageView) findViewById(R.id.backButton);
+        // 마이크 버튼
+        ImageView micBtn = (ImageView) findViewById(R.id.micOnOff);
+        // 메뉴 버튼
+        final Button menuBtn = (Button) findViewById(R.id.menuButton);
 
         // 참여자 목록 ListView
         final ListView userList = (ListView) findViewById(R.id.userlist);
@@ -442,8 +524,29 @@ public class RoomActivity extends Activity implements OnLoadCompleteListener {
         final Intent penSelIntent = new Intent(RoomActivity.this, penSelectActivity.class);
         final Intent textInsIntent = new Intent(RoomActivity.this, textInsertActivity.class);
 
-        // 안내
-        Toast.makeText(getApplicationContext(), "메뉴를 눌러 PDF파일을 열 수 있습니다.", Toast.LENGTH_LONG).show();
+        // menuBtn에 ContextMenu 등록
+        registerForContextMenu(menuBtn);
+
+        menuBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                menuBtn.showContextMenu();
+            }
+        });
+
+        // 권한 설정
+        if(Build.VERSION.SDK_INT >= 23)
+        {
+            if(ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED)
+            {
+                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, 0);
+            }
+
+            if(ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED)
+            {
+                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 1);
+            }
+        }
 
         // colorPick 클릭
         colorPick.setOnClickListener(new View.OnClickListener() {
@@ -495,7 +598,20 @@ public class RoomActivity extends Activity implements OnLoadCompleteListener {
                 else
                 {
                     displayFromUri(pdfUri);
+
+                    jsonObject = new JSONObject();
+
+                    try {
+                        jsonObject.put("ID", userId);
+                        jsonObject.put("roomNum", roomNum);
+                        jsonObject.put("pageNum", pageNumber);
+
+                        fileSocket.emit("pageChange", jsonObject);
+                    } catch (JSONException e) {
+                        e.printStackTrace();
+                    }
                 }
+                drawView.clearCanvas();
             }
         });
 
@@ -513,12 +629,58 @@ public class RoomActivity extends Activity implements OnLoadCompleteListener {
                 else
                 {
                     displayFromUri(pdfUri);
+
+                    jsonObject = new JSONObject();
+
+                    try {
+                        jsonObject.put("ID", userId);
+                        jsonObject.put("roomNum", roomNum);
+                        jsonObject.put("pageNum", pageNumber);
+
+                        fileSocket.emit("pageChange", jsonObject);
+                    } catch (JSONException e) {
+                        e.printStackTrace();
+                    }
+                }
+
+                drawView.clearCanvas();
+            }
+        });
+
+        // 되돌리기 버튼 누른 경우
+        cancelBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                int size = drawView.getDrawObjectCnt();
+
+                if(size > 0)
+                {
+                    // 현재 클라이언트의 마지막 그리기 정보의 index값
+                    // 즉, 내가 그린 그림의 index값을 구하고자 함
+                    int idx = drawView.getIndex()-1;
+
+                    // drawView에 지우고자하는 index와 userId값을 전달하여 작업수행
+                    // delete작업을 받는 리스너에서도 같은 메서드를 사용
+                    drawView.deleteDrawObject(idx, userId);
+
+                    jsonObject = new JSONObject();
+
+                    try {
+                        jsonObject.put("ID", userId);
+                        jsonObject.put("index", idx);
+                        jsonObject.put("roomNum", roomNum);
+                    } catch (JSONException e) {
+                        e.printStackTrace();
+                    }
+
+                    // 서버로 전송하여 서버도 삭제하고 이를 브로드캐스트
+                    ioSocket.emit("onDelete", jsonObject);
                 }
             }
         });
 
-        // drawView에 터치입력이 들어온 경우
-        drawView.setOnTouchListener(new View.OnTouchListener() {
+        // 터치를 받는 이벤트
+        View.OnTouchListener getTouch = new View.OnTouchListener() {
             @Override
             public boolean onTouch(View view, MotionEvent motionEvent) {
                 // 그림그리기 작업인지 string 입력인지 확인을 위한 bool 변수 얻음
@@ -540,12 +702,12 @@ public class RoomActivity extends Activity implements OnLoadCompleteListener {
                     case MotionEvent.ACTION_MOVE:
                         isDraw = 0;
                         break;
-                    default:
-                        break;
                 }
 
+                int idx = drawView.getIndex();
+
                 // JSON객체로 변환
-                jsonObject = json.make(userId, roomNum,  x,  y, penSize, penType, str, pA, pR, pG, pB, sR, sG, sB, strSize, strType, typeface, isDraw, isText);
+                jsonObject = json.make(userId, idx, x, y, penSize, penType, str, pA, pR, pG, pB, sR, sG, sB, strSize, strType, typeface, isDraw, isText, roomNum);
 
                 // 객체 전송
                 ioSocket.emit("clientToServer", jsonObject);
@@ -557,7 +719,15 @@ public class RoomActivity extends Activity implements OnLoadCompleteListener {
 
                 return false;
             }
-        });
+        };
+
+        // 터치를 안 받는 이벤트
+        View.OnTouchListener notTouch = new View.OnTouchListener() {
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                return true;
+            }
+        };
 
         // 새로운 그리기 정보 받는 경우
         onNewDraw = new Emitter.Listener() {
@@ -585,6 +755,9 @@ public class RoomActivity extends Activity implements OnLoadCompleteListener {
                                 // JSONArray를 통해 JSONObject를 얻고 drawView로 해당정보 전송
                                 for(int i=0; i<jsonArray.length(); i++) {
                                     jsonObject = jsonArray.getJSONObject(i);
+
+                                    String id = jsonObject.getString("userId");
+                                    int index = jsonObject.getInt("index");
 
                                     float pxX = (float) jsonObject.getDouble("x");
                                     float pyY = (float) jsonObject.getDouble("y");
@@ -614,7 +787,7 @@ public class RoomActivity extends Activity implements OnLoadCompleteListener {
                                     x2 = dpToPx(getApplicationContext(), pxX);
                                     y2 = dpToPx(getApplicationContext(), pyY);
 
-                                    drawData d = new drawData(x2, y2, sR2, sG2, sB2, penType2, typeface2, str2, strSize2, strType2, paint, isDraw2, isText2);
+                                    drawData d = new drawData(id, x2, y2, sR2, sG2, sB2, penType2, typeface2, str2, strSize2, strType2, paint, isDraw2, isText2, index);
                                     // drawView로 data 전달
                                     drawView.sendDrawData(d);
                                 }
@@ -663,7 +836,7 @@ public class RoomActivity extends Activity implements OnLoadCompleteListener {
                                 userListAdapter.notifyDataSetChanged();
 
                                 // 유저가 막 들어온 경우
-                                if(drawView.getDrawDataSize() == 0 && !userId.equals(masterId)) {
+                                if(drawView.getDrawObjectCnt() == 0 && !userId.equals(masterId)) {
                                     JSONArray drawArray = jsonObject.getJSONArray("result");
                                     // 그림정보가 있는 경우 추가 작업 실시
                                     for(int i = 0; i < drawArray.length(); i++) {
@@ -671,6 +844,8 @@ public class RoomActivity extends Activity implements OnLoadCompleteListener {
 
                                         Log.d("json", ""+jsonObject);
 
+                                        String id = jsonObject.getString("userId");
+                                        int index = jsonObject.getInt("index");
                                         float pxX = (float) jsonObject.getDouble("x");
                                         float pyY = (float) jsonObject.getDouble("y");
                                         penSize2 = (float) jsonObject.getDouble("penSize");
@@ -702,7 +877,7 @@ public class RoomActivity extends Activity implements OnLoadCompleteListener {
                                         x2 = dpToPx(getApplicationContext(), pxX);
                                         y2 = dpToPx(getApplicationContext(), pyY);
 
-                                        drawData d = new drawData(x2, y2, sR2, sG2, sB2, penType2, typeface2, str2, strSize2, strType2, paint, isDraw2, isText2);
+                                        drawData d = new drawData(id, x2, y2, sR2, sG2, sB2, penType2, typeface2, str2, strSize2, strType2, paint, isDraw2, isText2, index);
                                         // drawView로 data 전달
                                         drawView.sendDrawDataWithoutInvalidate(d);
                                     }
@@ -821,6 +996,7 @@ public class RoomActivity extends Activity implements OnLoadCompleteListener {
                             try {
                                 success = jsonObject.getInt("success");
                                 fileName = jsonObject.getString("fileName");
+                                pageNumber = jsonObject.getInt("pageNum");
                                 // Object로 Data를 가져온 뒤 byte 배열로 cast
                                 pdfByte = (byte []) jsonObject.get("fileData");
                                 // convert byte array to PDF
@@ -829,7 +1005,7 @@ public class RoomActivity extends Activity implements OnLoadCompleteListener {
                                 // 변환 후 화면에 띄우기
                                 if(complete)
                                 {
-                                    File pdfFile = new File(path+"/"+fileName);
+                                    pdfFile = new File(path+"/"+fileName);
                                     pdfPageCnt = getPageCount(path+"/"+fileName);
 
                                     // File을 통해 화면에 표시
@@ -843,6 +1019,72 @@ public class RoomActivity extends Activity implements OnLoadCompleteListener {
                         else
                         {
                             Toast.makeText(getApplicationContext(), "파일 다운로드를 실패하였습니다.\n다시 입장해주시기 바랍니다.", Toast.LENGTH_SHORT).show();
+                        }
+
+                    }
+                });
+            }
+        };
+
+        // page이동을 받는 리스너
+        onPageChange = new Emitter.Listener() {
+            @Override
+            public void call(Object... args) {
+                if(args[0] != null)
+                {
+                    jsonObject = (JSONObject )args[0];
+                }
+
+                // UI 작업은 메인스레드에서 되도록 핸들러
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            int success = jsonObject.getInt("success");
+
+                            if(success == 1)
+                            {
+                                Toast.makeText(getApplicationContext(), "" + pageNumber, Toast.LENGTH_SHORT).show();
+                                displayFromFile(pdfFile);
+                                drawView.clearCanvas();
+                            }
+                            else
+                            {
+                                Toast.makeText(getApplicationContext(), "페이지 이동정보를 받지 못하였습니다.", Toast.LENGTH_SHORT).show();
+                            }
+
+                        } catch (JSONException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                });
+            }
+        };
+
+        // 삭제작업
+        onDelete = new Emitter.Listener() {
+            @Override
+            public void call(Object... args) {
+                if(args[0] != null)
+                {
+                    jsonObject = (JSONObject) args[0];
+                }
+
+                // UI작업은 메인스레드에서 작업
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            int success = jsonObject.getInt("success");
+                            if(success == 1)
+                            {
+                                int idx = jsonObject.getInt("index");
+                                String id = jsonObject.getString("ID");
+
+                                drawView.deleteDrawObject(idx, id);
+                            }
+                        } catch (JSONException e) {
+                            e.printStackTrace();
                         }
 
                     }
@@ -867,8 +1109,10 @@ public class RoomActivity extends Activity implements OnLoadCompleteListener {
         }
 
         // socket에서 Handle할 Listener 등록
-        ioSocket.on("enterResult", onNewUser).on("exitResult", onExitUser).on("serverToClient", onNewDraw).on("makeResult", makeResult);
-        fileSocket.on("pdfDownload", onFile);
+        ioSocket.on("enterResult", onNewUser).on("exitResult", onExitUser).on("serverToClient", onNewDraw).on("makeResult", makeResult).on("onDelete", onDelete);
+        // 파일 관련 작업은 fileSocket에서 처리
+        fileSocket.on("pdfDownload", onFile).on("pageChange", onPageChange).on("enterRoomPdf", onFile);
+        // 음성관련 작업은 voiceSocket에서 처리
 
         // network check
         if(activeNetwork == null) {
@@ -896,6 +1140,8 @@ public class RoomActivity extends Activity implements OnLoadCompleteListener {
         // 방생성인지 입장인지 판별
         switch (work) {
             case "makeRoom" :
+                // Master
+                isMaster = true;
                 // 방생성 정보를 전송
                 ioSocket.emit("makeRoom", jsonObject);
                 fileSocket.emit("makeRoom", jsonObject);
@@ -905,6 +1151,8 @@ public class RoomActivity extends Activity implements OnLoadCompleteListener {
                 userListAdapter.notifyDataSetChanged();
                 break;
             case "enterRoom" :
+                // not Master
+                isMaster = false;
                 // 방번호 얻어옴
                 roomNum = intent.getIntExtra("roomNum", 0);
                 try {
@@ -921,6 +1169,29 @@ public class RoomActivity extends Activity implements OnLoadCompleteListener {
                 break;
             default:
                 break;
+        }
+
+        drawView.setUserId(userId);
+
+        // 방장인지 아닌지에 따라 버튼을 보이고 안 보이고
+        if(isMaster)
+        {
+            // 안내
+            Toast.makeText(getApplicationContext(), "메뉴의 강의록 열기를 통해 PDF파일을 열 수 있습니다.", Toast.LENGTH_SHORT).show();
+
+            // drawView 터치가능한 TouchListenner등록
+            drawView.setOnTouchListener(getTouch);
+        }
+        else
+        {
+            // drawView 터치못하도록 TouchListenner 등록
+            drawView.setOnTouchListener(notTouch);
+
+            // Master 가 아닌경우 PDF관련 버튼 안보임
+            penSelect.setVisibility(View.INVISIBLE);
+            colorPick.setVisibility(View.INVISIBLE);
+            textInsert.setVisibility(View.INVISIBLE);
+            cancelBtn.setVisibility(View.GONE);
         }
 
         // 녹음 하는 스레드
@@ -962,7 +1233,12 @@ public class RoomActivity extends Activity implements OnLoadCompleteListener {
         // 재생하는 스레드
         final Handler voicePlayHandler = new Handler()
         {
+            @Override
+            public void handleMessage(Message msg) {
+                super.handleMessage(msg);
 
+
+            }
         };
         voicePlayTask = new Runnable() {
             @Override
@@ -994,6 +1270,21 @@ public class RoomActivity extends Activity implements OnLoadCompleteListener {
     private int getPageCount(String path)
     {
         File f = new File(path);
+        pdfView.fromFile(f)
+                .onLoad(new OnLoadCompleteListener() {
+                    @Override
+                    public void loadComplete(int nbPages) {
+                        // nothing to do
+                        Log.d("PAGE", ""+pdfView.getPageCount());
+                    }
+                })
+                .load();
+
+        return pdfView.getPageCount();
+    }
+
+    private int getPageCount(File f)
+    {
         pdfView.fromFile(f)
                 .onLoad(new OnLoadCompleteListener() {
                     @Override
@@ -1052,20 +1343,4 @@ public class RoomActivity extends Activity implements OnLoadCompleteListener {
             firstOpen = false;
         }
     }
-
-    public String getRealPathFromURI(Context context, Uri contentUri) {
-        Cursor cursor = null;
-        try {
-            String[] proj = { MediaStore.Images.Media.DATA };
-            cursor = context.getContentResolver().query(contentUri,  proj, null, null, null);
-            int column_index = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA);
-            cursor.moveToFirst();
-            return cursor.getString(column_index);
-        } finally {
-            if (cursor != null) {
-                cursor.close();
-            }
-        }
-    }
-
 }

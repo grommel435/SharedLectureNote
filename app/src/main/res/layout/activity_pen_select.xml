@@ -36,7 +36,8 @@
             android:layout_height="96dp"
             android:id="@+id/eraser"
             android:layout_margin="5dp"
-            android:src="@drawable/eraser" />
+            android:src="@drawable/eraser"
+            android:visibility="gone" />
 
     </LinearLayout>
 

@@ -1,17 +1,24 @@
 package com.sharedlecturenote;
 
+import android.graphics.Paint;
+
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+
+import java.util.ArrayList;
 
 /**
  * Created by DJ on 2016-05-23.
  */
 public class makeDrawJSON {
     // 최종적으로 사용할 JSON 객체
-    public JSONObject make(String userId, int roomNum, float x, float y, float penSize, int penType, String str, int pA, int pR, int pG, int pB, int sR, int sG, int sB, float srtSize, int strType, int typeface, int isDraw, int isText) {
+    public JSONObject make(String userId, int index, float x, float y, float penSize, int penType, String str, int pA, int pR, int pG, int pB, int sR, int sG, int sB, float srtSize, int strType, int typeface, int isDraw, int isText, int roomNum) {
         JSONObject jsonObject = new JSONObject();
 
         try {
+            jsonObject.put("userId", userId);
+            jsonObject.put("intdex", index);
             jsonObject.put("x", x);
             jsonObject.put("y", y);
             jsonObject.put("penSize", penSize);
