@@ -98,7 +98,15 @@ public class DrawView extends View {
         for(int i = 0; i < drawObject.size(); i++) {
             // isDraw가 0 이면 선이므로 이전 객체와 연결
             if(drawObject.get(i).isDraw == 0) {
-                canvas.drawLine(drawObject.get(i-1).x, drawObject.get(i-1).y, drawObject.get(i).x, drawObject.get(i).y, drawObject.get(i).paint);
+                if(i > 0)
+                {
+                    if(drawObject.get(i-1).userId.equals(drawObject.get(i).userId) && drawObject.get(i-1).index == drawObject.get(i).index)
+                        canvas.drawLine(drawObject.get(i-1).x, drawObject.get(i-1).y, drawObject.get(i).x, drawObject.get(i).y, drawObject.get(i).paint);
+                }
+                else
+                {
+                    canvas.drawLine(drawObject.get(i-1).x, drawObject.get(i-1).y, drawObject.get(i).x, drawObject.get(i).y, drawObject.get(i).paint);
+                }
             } else {
                 // isDraw값이 1로 ACTION_DOWN인 경우
                 if(drawObject.get(i).isText == 1) {

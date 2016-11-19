@@ -18,7 +18,7 @@ public class makeDrawJSON {
 
         try {
             jsonObject.put("userId", userId);
-            jsonObject.put("intdex", index);
+            jsonObject.put("index", index);
             jsonObject.put("x", x);
             jsonObject.put("y", y);
             jsonObject.put("penSize", penSize);
